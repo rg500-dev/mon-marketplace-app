@@ -31,6 +31,18 @@ app.use(express.urlencoded({ extended: true }));
 // API routes
 app.use('/api', routes)
 
+// Welcome route
+app.get('/', (req: Request, res: Response) => {
+  res.json({ 
+    message: 'Marketplace API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      api: '/api'
+    }
+  });
+});
+
 // Health check
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'OK', timestamp: new Date() });
