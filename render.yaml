@@ -17,7 +17,7 @@ services:
   - type: web
     name: marketplace-frontend
     runtime: static
-    buildCommand: npm install && npm run build --prefix frontend
+    buildCommand: npm run build
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_URL
