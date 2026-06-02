@@ -16,6 +16,9 @@ COPY backend/tsconfig.json ./
 # Generate Prisma client
 RUN npx prisma generate
 
+# Build TypeScript
+RUN npm run build
+
 EXPOSE 5000
 
 CMD ["npm", "start"]
