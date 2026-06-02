@@ -3,7 +3,6 @@ services:
     name: marketplace-backend
     runtime: docker
     plan: free
-    dockerfilePath: ./Dockerfile.backend
     envVars:
       - key: NODE_ENV
         value: production
@@ -18,9 +17,11 @@ services:
 
   - type: web
     name: marketplace-frontend
-    runtime: docker
+    runtime: static
     plan: free
-    dockerfilePath: ./Dockerfile.frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    rootDir: frontend
     envVars:
       - key: VITE_API_URL
         value: https://marketplace-backend.onrender.com
