@@ -2,6 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Force rebuild - invalidate cache
+ARG BUILD_DATE
+
 # Copy backend files
 COPY backend/package*.json ./
 COPY backend/prisma ./prisma
