@@ -2,7 +2,6 @@ services:
   - type: web
     name: marketplace-backend
     runtime: docker
-    plan: free
     envVars:
       - key: NODE_ENV
         value: production
@@ -18,7 +17,6 @@ services:
   - type: web
     name: marketplace-frontend
     runtime: static
-    plan: free
     buildCommand: npm install && npm run build --prefix frontend
     staticPublishPath: frontend/dist
     envVars:
@@ -27,6 +25,5 @@ services:
 
 databases:
   - name: marketplace-db
-    plan: free
     databaseName: marketplace
     user: marketplace_user
