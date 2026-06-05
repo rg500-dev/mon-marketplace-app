@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import api from '../api'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
@@ -8,15 +9,17 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const { login } = useAuth()
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     try {
-      const res = await axios.post('/api/auth/register', { email, username, password })
-      localStorage.setItem('token', res.data.token)
-      navigate('/')
+      const res = await api.post('/auth/register', { email, username, password })
+      login(res.data.token, res.data.user)
+      navigate('/products')
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Registration failed')
+      setError(err?.response?.data?.error || "L'inscription a échoué")
     }
   }
 
@@ -26,15 +29,29 @@ export default function RegisterPage() {
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label className="block text-sm">Email</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border p-2 rounded" />
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full border p-2 rounded"
+            type="email"
+          />
         </div>
         <div>
           <label className="block text-sm">Nom d'utilisateur</label>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full border p-2 rounded" />
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full border p-2 rounded"
+          />
         </div>
         <div>
           <label className="block text-sm">Mot de passe</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border p-2 rounded" />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border p-2 rounded"
+          />
         </div>
         {error && <div className="text-red-600">{error}</div>}
         <button className="bg-blue-600 text-white px-4 py-2 rounded">S'inscrire</button>

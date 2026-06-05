@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 export default function HomePage() {
   return (
     <div className="min-h-screen">
@@ -8,13 +10,13 @@ export default function HomePage() {
           <p className="text-xl mb-8">
             Achetez et vendez les meilleures affaires de votre région
           </p>
-          <div className="flex gap-4 justify-center">
-            <button className="bg-white text-blue-600 px-8 py-3 rounded-lg font-bold hover:bg-gray-100">
-              Commencer à vendre
-            </button>
-            <button className="border-2 border-white text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/products" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-bold hover:bg-gray-100">
               Parcourir les annonces
-            </button>
+            </Link>
+            <Link to="/register" className="border-2 border-white text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700">
+              Rejoindre maintenant
+            </Link>
           </div>
         </div>
       </section>
@@ -36,7 +38,7 @@ export default function HomePage() {
           <div className="text-center">
             <div className="text-4xl mb-4">💬</div>
             <h3 className="text-xl font-bold mb-2">Messagerie</h3>
-            <p className="text-gray-600">Communiquez en temps réel avec les vendeurs</p>
+            <p className="text-gray-600">Communiquez facilement avec les vendeurs</p>
           </div>
         </div>
       </section>

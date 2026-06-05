@@ -1,10 +1,11 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { prisma } from './prisma'
-import routes from './routes'
+import createRoutes from './routes'
 
 // Load environment variables
 dotenv.config();
@@ -17,6 +18,11 @@ const io = new SocketIOServer(http, {
     methods: ['GET', 'POST'],
   },
 });
+
+const uploadDir = path.join(__dirname, '..', 'public', 'uploads')
+app.use('/uploads', express.static(uploadDir))
+
+const routes = createRoutes(io)
 
 const PORT = process.env.PORT || 5000;
 

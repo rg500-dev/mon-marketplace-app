@@ -2,15 +2,28 @@ import { Router } from 'express'
 import authRoutes from './auth'
 import productsRoutes from './products'
 import categoriesRoutes from './categories'
-import messagesRoutes from './messages'
+import createMessagesRoutes from './messages'
 import favoritesRoutes from './favorites'
+import notificationsRoutes from './notifications'
+import usersRoutes from './users'
+import reviewsRoutes from './reviews'
+import uploadRoutes from './upload'
+import adminRoutes from './admin'
+import reportsRoutes from './reports'
 
-const router = Router()
+export default function createRoutes(io: any) {
+  const router = Router()
 
-router.use('/', authRoutes)
-router.use('/', productsRoutes)
-router.use('/', categoriesRoutes)
-router.use('/', messagesRoutes)
-router.use('/', favoritesRoutes)
-
-export default router
+  router.use('/', authRoutes)
+  router.use('/', productsRoutes)
+  router.use('/', categoriesRoutes)
+  router.use('/', createMessagesRoutes(io))
+  router.use('/', favoritesRoutes)
+  router.use('/', notificationsRoutes)
+  router.use('/', usersRoutes)
+  router.use('/', reviewsRoutes)
+  router.use('/', uploadRoutes)
+  router.use('/', adminRoutes)
+  router.use('/', reportsRoutes)
+  return router
+}
