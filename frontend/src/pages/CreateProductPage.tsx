@@ -17,6 +17,10 @@ export default function CreateProductPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [location, setLocation] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [locating, setLocating] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -59,6 +63,9 @@ export default function CreateProductPage() {
         categoryId,
         condition,
         imageUrl,
+        latitude: latitude || undefined,
+        longitude: longitude || undefined,
+        location: location || undefined,
       })
       navigate(`/products/${res.data.data.id}`)
     } catch (err: any) {
@@ -138,6 +145,55 @@ export default function CreateProductPage() {
             <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           </div>
         </div>
+        {/* Localisation */}
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-medium mb-3">📍 Localisation</h3>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Ville / Adresse</label>
+              <input
+                className="w-full border rounded p-3"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Ex: Paris 11e, Dakar..."
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!navigator.geolocation) {
+                    setError('La géolocalisation n\'est pas supportée par votre navigateur')
+                    return
+                  }
+                  setLocating(true)
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      setLatitude(pos.coords.latitude.toString())
+                      setLongitude(pos.coords.longitude.toString())
+                      setLocation(`Position actuelle (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`)
+                      setLocating(false)
+                    },
+                    () => {
+                      setError('Impossible de récupérer votre position. Entrez l\'adresse manuellement.')
+                      setLocating(false)
+                    }
+                  )
+                }}
+                disabled={locating}
+                className="bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-300 w-full"
+              >
+                {locating ? '🔄 Détection...' : '📍 Utiliser ma position'}
+              </button>
+            </div>
+          </div>
+          {latitude && longitude && (
+            <p className="text-sm text-green-600 mt-2">
+              ✓ Position définie : {latitude}, {longitude}
+            </p>
+          )}
+        </div>
+
         {error && <div className="text-red-600">{error}</div>}
         <button type="submit" disabled={loading} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
           {loading ? 'Publication...' : 'Publier l’annonce'}

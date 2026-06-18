@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../prisma'
 import { requireAuth, AuthRequest } from '../middleware/auth'
+import { sendWelcomeEmail } from '../services/emailService'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key'
@@ -33,6 +34,9 @@ router.post('/auth/register', async (req, res) => {
     const token = jwt.sign({ userId: user.id } as any, JWT_SECRET as any, { expiresIn: JWT_EXPIRATION } as any)
     const safeUser = { ...user, password: undefined, verificationToken: undefined }
     res.status(201).json({ token, user: safeUser, verificationToken })
+
+    // Email de bienvenue (asynchrone)
+    sendWelcomeEmail(email, username, verificationToken)
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })

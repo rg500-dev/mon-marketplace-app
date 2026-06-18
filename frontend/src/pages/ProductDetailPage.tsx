@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -12,14 +12,28 @@ type Product = {
   condition: string
   status: string
   createdAt: string
+  latitude?: number
+  longitude?: number
+  location?: string
   category: { name: string }
-  seller: { id: string; username: string; avatar?: string; rating: number; verified?: boolean }
+  seller: { id: string; username: string; avatar?: string; rating: number; verified?: boolean; location?: string }
   reviews: Array<{ id: string; rating: number; comment?: string; createdAt: string; author: { id: string; username: string } }>
+}
+
+type Offer = {
+  id: string
+  amount: number
+  message?: string
+  status: string
+  counterAmount?: number
+  counterMessage?: string
+  buyer: { id: string; username: string }
 }
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -27,6 +41,11 @@ export default function ProductDetailPage() {
   const [comment, setComment] = useState('')
   const [reviewError, setReviewError] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
+  const [offerAmount, setOfferAmount] = useState('')
+  const [offerMessage, setOfferMessage] = useState('')
+  const [offerError, setOfferError] = useState('')
+  const [submittingOffer, setSubmittingOffer] = useState(false)
+  const [myOffer, setMyOffer] = useState<Offer | null>(null)
 
   const loadProduct = async () => {
     if (!id) return
@@ -43,9 +62,27 @@ export default function ProductDetailPage() {
     }
   }
 
+  const loadMyOffer = async () => {
+    if (!id || !user) return
+    try {
+      const res = await api.get(`/offers/${id}`)
+      const offers = res.data.data
+      if (offers.length > 0) {
+        setMyOffer(offers[0])
+        setOfferAmount(offers[0].amount.toString())
+      }
+    } catch {
+      // No offer found
+    }
+  }
+
   useEffect(() => {
     loadProduct()
   }, [id])
+
+  useEffect(() => {
+    loadMyOffer()
+  }, [id, user])
 
   const submitReview = async () => {
     if (!product) return
@@ -56,7 +93,7 @@ export default function ProductDetailPage() {
       setComment('')
       await loadProduct()
     } catch (err: any) {
-      setReviewError(err?.response?.data?.error || 'Impossible d’envoyer l’évaluation.')
+      setReviewError(err?.response?.data?.error || 'Impossible d\'envoyer l\'évaluation.')
     } finally {
       setSubmittingReview(false)
     }
@@ -102,6 +139,23 @@ export default function ProductDetailPage() {
             <p className="text-gray-700">{product.description}</p>
           </div>
 
+          {product.location && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm font-medium text-blue-800">📍 Localisation</p>
+              <p className="text-blue-700">{product.location}</p>
+              {product.latitude && product.longitude && (
+                <a
+                  href={`https://www.google.com/maps?q=${product.latitude},${product.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline mt-1 inline-block"
+                >
+                  Voir sur Google Maps →
+                </a>
+              )}
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 p-4 rounded">
               <p className="text-sm text-gray-500">Vendeur</p>
@@ -122,6 +176,14 @@ export default function ProductDetailPage() {
             <div className="space-y-3 mb-6">
               <p className="text-gray-700">Envoyez un message au vendeur pour en savoir plus.</p>
               <div className="flex flex-wrap gap-3">
+                {product.status === 'active' && (
+                  <button
+                    onClick={() => navigate(`/checkout/${product.id}`)}
+                    className="inline-block bg-green-600 text-white px-5 py-3 rounded-lg hover:bg-green-700 font-medium"
+                  >
+                    💳 Acheter maintenant
+                  </button>
+                )}
                 <Link to="/messages" className="inline-block bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700">
                   Ouvrir la messagerie
                 </Link>
@@ -139,6 +201,115 @@ export default function ProductDetailPage() {
               <Link to="/login" className="text-blue-600 hover:underline">
                 Connectez-vous maintenant
               </Link>
+            </div>
+          )}
+
+          {/* Section Offre / Négociation */}
+          {user && user.username !== product.seller.username && product.status === 'active' && (
+            <div className="mb-6 p-4 bg-white rounded-lg border">
+              <h3 className="text-lg font-bold mb-3">💬 Faire une offre</h3>
+
+              {!myOffer || myOffer.status === 'declined' || myOffer.status === 'cancelled' ? (
+                <form onSubmit={async (e) => {
+                  e.preventDefault()
+                  setOfferError('')
+                  if (!offerAmount || parseFloat(offerAmount) <= 0) {
+                    setOfferError('Montant invalide')
+                    return
+                  }
+                  setSubmittingOffer(true)
+                  try {
+                    const res = await api.post('/offers', {
+                      productId: product.id,
+                      amount: offerAmount,
+                      message: offerMessage,
+                    })
+                    setMyOffer(res.data.data)
+                    setOfferError('')
+                  } catch (err: any) {
+                    setOfferError(err?.response?.data?.error || 'Erreur lors de l\'envoi')
+                  } finally {
+                    setSubmittingOffer(false)
+                  }
+                }}>
+                  <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="border rounded p-3"
+                      placeholder="Votre prix (€)"
+                      value={offerAmount}
+                      onChange={(e) => setOfferAmount(e.target.value)}
+                    />
+                    <input
+                      className="border rounded p-3"
+                      placeholder="Message (optionnel)"
+                      value={offerMessage}
+                      onChange={(e) => setOfferMessage(e.target.value)}
+                    />
+                  </div>
+                  {offerError && <p className="text-red-600 text-sm mb-2">{offerError}</p>}
+                  <button type="submit" disabled={submittingOffer} className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700">
+                    {submittingOffer ? 'Envoi...' : `Faire une offre`}
+                  </button>
+                </form>
+              ) : myOffer.status === 'pending' ? (
+                <div>
+                  <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-3">
+                    <p className="text-yellow-800 font-medium">Offre en attente</p>
+                    <p className="text-yellow-700">Votre offre de <strong>{myOffer.amount}€</strong> est en cours d'examen</p>
+                    {myOffer.message && <p className="text-yellow-600 text-sm mt-1">Message : {myOffer.message}</p>}
+                  </div>
+                  <button onClick={async () => {
+                    try {
+                      await api.patch(`/offers/${myOffer.id}/cancel`)
+                      setMyOffer({ ...myOffer, status: 'cancelled' })
+                    } catch {}
+                  }} className="text-sm text-red-600 hover:underline">
+                    Annuler l'offre
+                  </button>
+                </div>
+              ) : myOffer.status === 'counter' ? (
+                <div>
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-3">
+                    <p className="text-blue-800 font-medium">🔄 Contre-offre reçue</p>
+                    <p className="text-blue-700">Le vendeur propose <strong>{myOffer.counterAmount}€</strong> (votre offre : {myOffer.amount}€)</p>
+                    {myOffer.counterMessage && <p className="text-blue-600 text-sm mt-1">Message: {myOffer.counterMessage}</p>}
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={async () => {
+                      try {
+                        await api.patch(`/offers/${myOffer.id}/accept-counter`)
+                        setMyOffer({ ...myOffer, status: 'accepted' })
+                      } catch {}
+                    }} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm">
+                      ✅ Accepter à {myOffer.counterAmount}€
+                    </button>
+                    <button onClick={async () => {
+                      try {
+                        await api.patch(`/offers/${myOffer.id}/cancel`)
+                        setMyOffer({ ...myOffer, status: 'cancelled' })
+                      } catch {}
+                    }} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">
+                      Refuser
+                    </button>
+                  </div>
+                </div>
+              ) : myOffer.status === 'accepted' ? (
+                <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                  <p className="text-green-800 font-bold">✔ Offre acceptée !</p>
+                  <p className="text-green-700">Prix convenu : <strong>{myOffer.counterAmount || myOffer.amount}€</strong></p>
+                  <p className="text-green-600 text-sm">Le vendeur vous contactera pour finaliser la transaction.</p>
+                </div>
+              ) : myOffer.status === 'declined' ? (
+                <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                  <p className="text-red-800 font-medium">✖ Offre refusée</p>
+                  <p className="text-red-700">Votre offre de {myOffer.amount}€ a été refusée.</p>
+                  <button onClick={() => setMyOffer(null)} className="text-sm text-blue-600 hover:underline mt-2">
+                    Faire une nouvelle offre
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -186,7 +357,7 @@ export default function ProductDetailPage() {
               </div>
               {reviewError && <div className="text-red-600 mb-4">{reviewError}</div>}
               <button onClick={submitReview} disabled={submittingReview} className="bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700">
-                {submittingReview ? 'Envoi...' : 'Publier l’évaluation'}
+                {submittingReview ? 'Envoi...' : 'Publier l\'évaluation'}
               </button>
             </div>
           )}

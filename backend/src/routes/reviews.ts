@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../prisma'
 import requireAuth, { AuthRequest } from '../middleware/auth'
+import { sendNewReviewEmail } from '../services/emailService'
 
 const router = Router()
 
@@ -23,6 +24,7 @@ router.post('/reviews', requireAuth, async (req: AuthRequest, res) => {
   const product = await prisma.product.findUnique({ where: { id: productId }, include: { seller: true } })
   if (!product) return res.status(404).json({ error: 'Product not found' })
 
+  const reviewer = await prisma.user.findUnique({ where: { id: req.userId! }, select: { username: true } })
   const review = await prisma.review.create({
     data: {
       authorId: req.userId!,
@@ -53,6 +55,12 @@ router.post('/reviews', requireAuth, async (req: AuthRequest, res) => {
   })
 
   res.status(201).json({ data: review })
+
+  // Email : notifier le vendeur (asynchrone)
+  const sellerUser = await prisma.user.findUnique({ where: { id: product.sellerId }, select: { email: true } })
+  if (sellerUser?.email && reviewer) {
+    sendNewReviewEmail(sellerUser.email, reviewer.username, numericRating, product.title)
+  }
 })
 
 export default router

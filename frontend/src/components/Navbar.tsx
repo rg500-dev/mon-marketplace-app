@@ -44,6 +44,9 @@ export default function Navbar() {
             <Link to="/messages" className="text-gray-700 hover:text-blue-600">
               Messages
             </Link>
+            <Link to="/offers" className="text-gray-700 hover:text-blue-600">
+              Offres
+            </Link>
             {!loading && user ? (
               <>
                 <Link to="/products/new" className="text-gray-700 hover:text-blue-600">

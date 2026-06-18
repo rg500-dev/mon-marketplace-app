@@ -10,6 +10,10 @@ import reviewsRoutes from './reviews'
 import uploadRoutes from './upload'
 import adminRoutes from './admin'
 import reportsRoutes from './reports'
+import offersRoutes from './offers'
+import paymentRoutes from './payment'
+import savedSearchesRoutes from './savedSearches'
+import sellerRoutes from './seller'
 
 export default function createRoutes(io: any) {
   const router = Router()
@@ -25,5 +29,9 @@ export default function createRoutes(io: any) {
   router.use('/', uploadRoutes)
   router.use('/', adminRoutes)
   router.use('/', reportsRoutes)
+  router.use('/', offersRoutes)
+  router.use('/payment', paymentRoutes)
+  router.use('/', savedSearchesRoutes)
+  router.use('/', sellerRoutes)
   return router
 }

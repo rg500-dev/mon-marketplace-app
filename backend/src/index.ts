@@ -2,10 +2,12 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import passport from 'passport';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { prisma } from './prisma'
 import createRoutes from './routes'
+import socialAuthRoutes from './routes/socialAuth'
 
 // Load environment variables
 dotenv.config();
@@ -33,9 +35,11 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(passport.initialize());
 
 // API routes
 app.use('/api', routes)
+app.use('/api', socialAuthRoutes)
 
 // Welcome route
 app.get('/', (req: Request, res: Response) => {

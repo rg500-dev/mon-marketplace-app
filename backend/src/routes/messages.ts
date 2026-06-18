@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { Server as SocketIOServer } from 'socket.io'
 import { prisma } from '../prisma'
 import requireAuth, { AuthRequest } from '../middleware/auth'
+import { sendNewMessageEmail } from '../services/emailService'
 
 export default function createMessagesRoutes(io: SocketIOServer) {
   const router = Router()
@@ -73,6 +74,12 @@ export default function createMessagesRoutes(io: SocketIOServer) {
     })
 
     res.status(201).json({ data: message })
+
+    // Email : notifier le destinataire (asynchrone)
+    const recipientUser = await prisma.user.findUnique({ where: { id: recipientId }, select: { email: true } })
+    if (recipientUser?.email) {
+      sendNewMessageEmail(recipientUser.email, sender.username, content)
+    }
   })
 
   router.get('/messages/:userId', requireAuth, async (req: AuthRequest, res) => {

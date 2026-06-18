@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
+import { useAuth } from '../contexts/AuthContext'
 
 type Product = {
   id: string
@@ -11,6 +12,10 @@ type Product = {
   condition: string
   status: string
   createdAt: string
+  latitude?: number
+  longitude?: number
+  location?: string
+  distance?: number
   category: { name: string }
   seller: { username: string; rating: number; verified?: boolean }
 }
@@ -22,6 +27,7 @@ type Category = {
 }
 
 export default function ProductsPage() {
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [search, setSearch] = useState('')
@@ -32,6 +38,14 @@ export default function ProductsPage() {
   const [sort, setSort] = useState('newest')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [location, setLocation] = useState('')
+  const [radius, setRadius] = useState('50')
+  const [userLat, setUserLat] = useState('')
+  const [userLng, setUserLng] = useState('')
+  const [locating, setLocating] = useState(false)
+  const [geoActive, setGeoActive] = useState(false)
+  const [savingSearch, setSavingSearch] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   const loadCategories = async () => {
     try {
@@ -54,6 +68,10 @@ export default function ProductsPage() {
         minPrice: minPrice || undefined,
         maxPrice: maxPrice || undefined,
         sort,
+        location: location || undefined,
+        lat: userLat || undefined,
+        lng: userLng || undefined,
+        radius: geoActive && radius ? radius : undefined,
       }
       const res = await api.get('/products', { params })
       setProducts(res.data.data)
@@ -115,7 +133,7 @@ export default function ProductsPage() {
           </select>
           <button className="bg-blue-600 text-white rounded-lg px-5 py-3 hover:bg-blue-700">Rechercher</button>
         </form>
-        <div className="grid sm:grid-cols-3 gap-4 mt-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
           <input
             type="number"
             className="border rounded p-3"
@@ -139,7 +157,56 @@ export default function ProductsPage() {
             <option value="oldest">Les plus anciens</option>
             <option value="price_asc">Prix croissant</option>
             <option value="price_desc">Prix décroissant</option>
+            <option value="distance" disabled={!geoActive}>Distance (proximité)</option>
           </select>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              className="border rounded p-3 w-20 flex-shrink-0"
+              placeholder="Rayon"
+              value={radius}
+              onChange={(e) => setRadius(e.target.value)}
+              disabled={!geoActive}
+            />
+            <span className="flex items-center text-sm text-gray-500">km</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (!navigator.geolocation) {
+                  setError('La géolocalisation n\'est pas supportée')
+                  return
+                }
+                if (geoActive) {
+                  setGeoActive(false)
+                  setUserLat('')
+                  setUserLng('')
+                  setLocation('')
+                  return
+                }
+                setLocating(true)
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    setUserLat(pos.coords.latitude.toString())
+                    setUserLng(pos.coords.longitude.toString())
+                    setGeoActive(true)
+                    setLocation(`À proximité (${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)})`)
+                    setLocating(false)
+                    loadProducts()
+                  },
+                  () => {
+                    setError('Impossible d\'accéder à votre position')
+                    setLocating(false)
+                  }
+                )
+              }}
+              disabled={locating}
+              className={`px-3 py-2 rounded-lg border text-sm ${
+                geoActive ? 'bg-green-100 border-green-500 text-green-700' : 'bg-gray-100 border-gray-300 text-gray-700'
+              }`}
+            >
+              {locating ? '🔄' : geoActive ? '✓' : '📍'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -159,7 +226,61 @@ export default function ProductsPage() {
               <span className="block text-sm text-gray-600">Prix</span>
               <p>{minPrice || '0'}€ - {maxPrice || '∞'}€</p>
             </div>
+            <div>
+              <span className="block text-sm text-gray-600">Localisation</span>
+              {geoActive ? (
+                <p className="text-green-600">{location || 'Position activée'} • {radius}km</p>
+              ) : location ? (
+                <p>{location}</p>
+              ) : (
+                <p className="text-gray-400">Non précisée</p>
+              )}
+            </div>
           </div>
+
+          {user && (
+            <div className="mt-6 pt-4 border-t">
+              <button
+                onClick={async () => {
+                  if (savingSearch) return
+                  setSavingSearch(true)
+                  setSaveSuccess(false)
+                  try {
+                    await api.post('/saved-searches', {
+                      query: search || undefined,
+                      categoryId: selectedCategory || undefined,
+                      minPrice: minPrice || undefined,
+                      maxPrice: maxPrice || undefined,
+                      condition: condition || undefined,
+                      location: location || undefined,
+                      latitude: userLat || undefined,
+                      longitude: userLng || undefined,
+                      radius: geoActive ? radius : undefined,
+                    })
+                    setSaveSuccess(true)
+                    setTimeout(() => setSaveSuccess(false), 3000)
+                  } catch (err) {
+                    console.error(err)
+                  } finally {
+                    setSavingSearch(false)
+                  }
+                }}
+                className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  saveSuccess
+                    ? 'bg-green-100 text-green-700 border border-green-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
+                }`}
+              >
+                {savingSearch ? 'Sauvegarde...' : saveSuccess ? '✅ Recherche sauvegardée !' : '🔔 Sauvegarder cette recherche'}
+              </button>
+              <Link
+                to="/saved-searches"
+                className="block w-full text-center mt-2 text-xs text-blue-600 hover:underline"
+              >
+                Voir mes alertes →
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="md:col-span-3">
@@ -188,6 +309,12 @@ export default function ProductsPage() {
                       <span className="text-sm text-gray-500">{product.seller.username}</span>
                       <span className="text-sm text-yellow-500">★ {product.seller.rating?.toFixed(1) ?? '0.0'}</span>
                     </div>
+                    {product.distance != null && (
+                      <p className="text-xs text-gray-500 mb-2">📍 À {product.distance} km</p>
+                    )}
+                    {product.location && !product.distance && (
+                      <p className="text-xs text-gray-500 mb-2">📍 {product.location}</p>
+                    )}
                     <div className="flex justify-between items-center">
                       <span className="text-2xl font-bold text-blue-600">{product.price.toFixed(2)}€</span>
                       <Link to={`/products/${product.id}`} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">

@@ -20,7 +20,7 @@ npm install
 
 **Frontend:**
 ```bash
-2cd frontend
+cd frontend
 npm install
 ```
 

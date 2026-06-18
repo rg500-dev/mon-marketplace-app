@@ -4,7 +4,23 @@ import requireAuth from '../middleware/auth'
 
 const router = Router()
 
-// List products with search and filters
+// Helper: Haversine distance (returns km)
+function haversineDistance(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const R = 6371 // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+// List products with search, filters, and distance search
 router.get('/products', async (req, res) => {
   const {
     q,
@@ -15,6 +31,10 @@ router.get('/products', async (req, res) => {
     sort = 'newest',
     page = '1',
     limit = '20',
+    lat,
+    lng,
+    radius, // in km
+    location, // text search for city/address
   } = req.query as any
 
   const where: any = { status: 'active' }
@@ -35,6 +55,11 @@ router.get('/products', async (req, res) => {
     if (maxPrice) where.price.lte = parseFloat(maxPrice)
   }
 
+  // Text search on location (city name, address)
+  if (location && !lat && !lng) {
+    where.location = { contains: location, mode: 'insensitive' }
+  }
+
   const pageNum = Math.max(1, parseInt(page))
   const lim = Math.max(1, parseInt(limit))
 
@@ -42,6 +67,9 @@ router.get('/products', async (req, res) => {
   if (sort === 'price_asc') orderBy.price = 'asc'
   if (sort === 'price_desc') orderBy.price = 'desc'
   if (sort === 'oldest') orderBy.createdAt = 'asc'
+  if (sort === 'distance' && lat && lng) {
+    // Distance sort will be done in-memory
+  }
 
   const products = await prisma.product.findMany({
     where,
@@ -56,7 +84,32 @@ router.get('/products', async (req, res) => {
     },
   })
 
-  res.json({ data: products })
+  // Apply distance filter and sorting in-memory
+  let filtered = products
+  if (lat && lng) {
+    const userLat = parseFloat(lat)
+    const userLng = parseFloat(lng)
+    const rad = radius ? parseFloat(radius) : 50 // default 50km
+
+    filtered = products
+      .filter((p) => {
+        if (p.latitude == null || p.longitude == null) return false
+        const dist = haversineDistance(userLat, userLng, p.latitude, p.longitude)
+        return dist <= rad
+      })
+      .map((p) => {
+        const dist = (p.latitude != null && p.longitude != null)
+          ? haversineDistance(userLat, userLng, p.latitude, p.longitude)
+          : null
+        return { ...p, distance: dist ? Math.round(dist * 10) / 10 : null }
+      })
+
+    if (sort === 'distance') {
+      filtered.sort((a: any, b: any) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+    }
+  }
+
+  res.json({ data: filtered })
 })
 
 // Get product detail with seller and reviews
@@ -85,7 +138,7 @@ router.get('/products/:id', async (req, res) => {
 
 // Create product (protected)
 router.post('/products', requireAuth, async (req: any, res) => {
-  const { title, description, price, categoryId, condition, imageUrl, status } = req.body
+  const { title, description, price, categoryId, condition, imageUrl, status, latitude, longitude, location } = req.body
   if (!title || !price || !categoryId) return res.status(400).json({ error: 'Missing fields' })
 
   const product = await prisma.product.create({
@@ -98,6 +151,9 @@ router.post('/products', requireAuth, async (req: any, res) => {
       condition: condition || 'used',
       status: status || 'active',
       image: imageUrl || null,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      location: location || null,
     },
   })
 
