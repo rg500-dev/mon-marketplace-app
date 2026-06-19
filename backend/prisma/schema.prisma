@@ -87,6 +87,7 @@ model Category {
 model Message {
   id        String   @id @default(cuid())
   content   String
+  image     String?
   sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
   senderId  String
   recipient String
