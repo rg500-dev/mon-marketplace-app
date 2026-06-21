@@ -8,24 +8,24 @@ RUN apk add --no-cache openssl
 # Force rebuild - invalidate cache
 ARG BUILD_DATE
 
-# Copy backend files
-COPY backend/package*.json ./backend/
-COPY backend/prisma ./backend/prisma
+# Copy backend package.json and prisma schema
+COPY backend/package*.json ./
+COPY backend/prisma ./prisma
 
-# Install dependencies
-RUN cd backend && npm install
+# Install backend dependencies
+RUN npm install
 
-# Copy rest of backend
-COPY backend/src ./backend/src
-COPY backend/tsconfig.json ./backend/
+# Copy backend source code
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
 
 # Generate Prisma client
-RUN cd backend && npx prisma generate
+RUN npx prisma generate
 
 # Build TypeScript
-RUN cd backend && npm run build
+RUN npm run build
 
 EXPOSE 5000
 
-# Démarrer le serveur après avoir appliqué les migrations
-CMD ["sh", "-c", "cd backend && npx prisma migrate deploy && node dist/index.js"]
+# Run migrations and start server
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

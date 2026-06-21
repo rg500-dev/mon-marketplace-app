@@ -15,17 +15,11 @@ dotenv.config();
 const app: Express = express();
 const http = createServer(app);
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'https://mon-marketplace-app-frontend.onrender.com',
-  'http://localhost:5173',
-  'http://localhost:5000',
-].filter(Boolean) as string[]
-
 const io = new SocketIOServer(http, {
   cors: {
-    origin: allowedOrigins,
+    origin: true,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
@@ -38,7 +32,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: allowedOrigins,
+  origin: true,
   credentials: true,
 }));
 app.use(express.json());
