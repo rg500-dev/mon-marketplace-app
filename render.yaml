@@ -12,7 +12,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://marketplace-frontend.onrender.com
+        value: https://mon-marketplace-app-frontend.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
