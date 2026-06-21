@@ -10,6 +10,7 @@ ARG BUILD_DATE
 
 # Copy backend files
 COPY backend/package*.json ./
+COPY package.json ./
 COPY backend/prisma ./prisma
 
 # Install dependencies
@@ -27,4 +28,5 @@ RUN npm run build
 
 EXPOSE 5000
 
-CMD ["npm", "start"]
+# Démarrer le serveur après avoir appliqué les migrations
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]

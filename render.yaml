@@ -1,7 +1,11 @@
 services:
+  # ============================================
+  # BACKEND - API Web Service (Docker)
+  # ============================================
   - type: web
     name: marketplace-backend
     runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: NODE_ENV
         value: production
@@ -34,13 +38,27 @@ services:
       - key: SMTP_FROM
         sync: false
 
+  # ============================================
+  # FRONTEND - Static Site (Vite/React)
+  # ============================================
   - type: web
     name: marketplace-frontend
     runtime: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://marketplace-backend.onrender.com
+        value: https://marketplace-backend.onrender.com/api
       - key: VITE_STRIPE_PUBLISHABLE_KEY
         sync: false
