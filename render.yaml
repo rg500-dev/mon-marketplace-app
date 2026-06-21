@@ -59,6 +59,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://marketplace-backend.onrender.com/api
+        value: https://mon-marketplace-backend.onrender.com/api
       - key: VITE_STRIPE_PUBLISHABLE_KEY
         sync: false

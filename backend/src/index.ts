@@ -28,7 +28,7 @@ app.use('/uploads', express.static(uploadDir))
 
 const routes = createRoutes(io)
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 // Middleware CORS manuel - s'exécute AVANT tout
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -36,7 +36,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
-  if (req.method === 'OPTIONS') {
+2  if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
