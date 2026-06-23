@@ -1,18 +1,25 @@
 services:
   # ============================================
-  # BACKEND - API Web Service (Docker)
+  # BACKEND - Node Web Service
   # ============================================
   - type: web
-    name: marketplace-backend
-    runtime: docker
-    dockerfilePath: ./Dockerfile
+    name: marketplace-backend 
+    plan: free
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npx prisma db push && npm run build
+    startCommand: npm start
     envVars:
+      - key: NODE_VERSION
+        value: "24"
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: "10000"
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://mon-marketplace-app-frontend.onrender.com
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
@@ -30,7 +37,7 @@ services:
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_SECURE
-        value: "false"
+        value: "false"8
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASSWORD
@@ -44,8 +51,9 @@ services:
   - type: web
     name: marketplace-frontend
     runtime: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     headers:
       - path: /*
         name: X-Frame-Options
@@ -59,6 +67,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://mon-marketplace-backend.onrender.com/api
+        sync: false
       - key: VITE_STRIPE_PUBLISHABLE_KEY
         sync: false

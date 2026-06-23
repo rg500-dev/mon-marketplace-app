@@ -89,7 +89,7 @@ git push -u origin main
 - `DATABASE_URL` : fourni par Render si la base est créée automatiquement
 - `VITE_API_URL` : URL du backend Render pour le frontend
 
-### 4) Commandes de build Render
+### 4) Commandes de build Render2
 
 Backend :
 ```bash

@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext'
 
 const SOCKET_URL = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace('/api', '')
-  : 'http://localhost:5001'
+  : 'http://localhost:10000'
 
 type SocketContextType = {
   socket: Socket | null
