@@ -3,7 +3,7 @@ services:
   # BACKEND - Node Web Service
   # ============================================
   - type: web
-    name: marketplace-backend 
+    name: marketplace-backend
     plan: free
     runtime: node
     rootDir: backend
@@ -19,7 +19,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        sync: false
+        value: https://mon-marketplace-app-frontend.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
@@ -37,7 +37,7 @@ services:
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_SECURE
-        value: "false"8
+        value: "false"
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASSWORD
@@ -67,6 +67,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        sync: false
+        value: https://mon-marketplace-backend.onrender.com/api
       - key: VITE_STRIPE_PUBLISHABLE_KEY
         sync: false
