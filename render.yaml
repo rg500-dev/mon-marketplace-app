@@ -19,7 +19,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://mon-marketplace-app-frontend.onrender.com
+        value: https://marketplace-frontend-rv3l.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
@@ -67,6 +67,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://mon-marketplace-backend.onrender.com/api
+        value: https://marketplace-backend-1sph.onrender.com/api
       - key: VITE_STRIPE_PUBLISHABLE_KEY
         sync: false
