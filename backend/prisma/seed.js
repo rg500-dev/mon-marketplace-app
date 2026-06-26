@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client'
-
+const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 const categories = [
@@ -17,7 +16,6 @@ const categories = [
 
 async function main() {
   console.log('🌱 Seeding categories...')
-  
   for (const category of categories) {
     await prisma.category.upsert({
       where: { slug: category.slug },
@@ -25,7 +23,6 @@ async function main() {
       create: category,
     })
   }
-  
   console.log('✅ Categories seeded successfully!')
 }
 
