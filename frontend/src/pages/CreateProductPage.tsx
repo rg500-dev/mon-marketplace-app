@@ -55,7 +55,12 @@ export default function CreateProductPage() {
 
     setLoading(true)
     try {
-      const imageUrl = await uploadImage()
+      let imageUrl = null
+      try {
+        imageUrl = await uploadImage()
+      } catch (uploadErr) {
+        console.warn('Upload échoué, annonce sans image:', uploadErr)
+      }
       const res = await api.post('/products', {
         title,
         description,
@@ -70,7 +75,7 @@ export default function CreateProductPage() {
       navigate(`/products/${res.data.data.id}`)
     } catch (err: any) {
       console.error(err)
-      setError(err?.response?.data?.error || 'Impossible de créer l’annonce.')
+      setError(err?.response?.data?.error || 'Impossible de créer l\'annonce.')
     } finally {
       setLoading(false)
     }

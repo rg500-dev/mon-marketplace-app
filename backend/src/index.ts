@@ -30,16 +30,19 @@ const routes = createRoutes(io)
 
 const PORT = process.env.PORT || 10000;
 
-// Middleware CORS manuel - s'exécute AVANT tout
-app.use((req: Request, res: Response, next: NextFunction) => {
+// Middleware CORS - accepte toutes les origines
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
+// Gestion des requêtes OPTIONS (preflight) pour toutes les routes
+app.options('*', (req: Request, res: Response) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, multipart/form-data');
   res.header('Access-Control-Allow-Credentials', 'true');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
+  res.sendStatus(200);
 });
 
 app.use(express.json());
