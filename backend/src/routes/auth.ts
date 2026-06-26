@@ -50,7 +50,8 @@ router.post('/auth/login', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Missing fields' })
     const user = await prisma.user.findUnique({ where: { email } })
     if (!user) return res.status(400).json({ error: 'Invalid credentials' })
-    if (!user.verified) return res.status(403).json({ error: 'Account needs verification' })
+    // Vérification email désactivée pour permettre la connexion immédiate
+    // if (!user.verified) return res.status(403).json({ error: 'Account needs verification' })
     if (user.isSuspended) return res.status(403).json({ error: 'Account suspended' })
     const ok = await bcrypt.compare(password, user.password)
     if (!ok) return res.status(400).json({ error: 'Invalid credentials' })

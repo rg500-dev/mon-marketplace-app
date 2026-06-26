@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://mon-marketplace-backend.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://marketplace-backend-1sph.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },

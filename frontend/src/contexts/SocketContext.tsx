@@ -2,9 +2,8 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { io, Socket } from 'socket.io-client'
 import { useAuth } from './AuthContext'
 
-const SOCKET_URL = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace('/api', '')
-  : 'http://localhost:10000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000/api'
+const SOCKET_URL = API_URL.replace(/\/api\/?$/, '')
 
 type SocketContextType = {
   socket: Socket | null
