@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../prisma'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key'
+const JWT_SECRET = process.env.JWT_SECRET
 
 export interface AuthRequest extends Request {
   userId?: string
@@ -10,6 +10,10 @@ export interface AuthRequest extends Request {
 
 export const requireAuth = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (!JWT_SECRET) {
+      console.error('JWT_SECRET non défini')
+      return res.status(500).json({ error: 'Server configuration error' })
+    }
     const authHeader = req.headers.authorization
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' })

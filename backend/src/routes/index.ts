@@ -15,8 +15,15 @@ import paymentRoutes from './payment'
 import savedSearchesRoutes from './savedSearches'
 import sellerRoutes from './seller'
 
-export default function createRoutes(io: any) {
+export default function createRoutes(io: any, loginLimiter?: any) {
   const router = Router()
+
+  router.use('/', loginLimiter ? (req, res, next) => {
+    if (req.path === '/auth/login') {
+      return loginLimiter(req, res, next)
+    }
+    next()
+  } : (req, res, next) => next())
 
   router.use('/', authRoutes)
   router.use('/', productsRoutes)

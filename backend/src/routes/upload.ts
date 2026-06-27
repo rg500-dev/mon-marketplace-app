@@ -3,6 +3,7 @@ import multer from 'multer'
 import path from 'path'
 import { v2 as cloudinary } from 'cloudinary'
 import fs from 'fs'
+import requireAuth from '../middleware/auth'
 
 const router = Router()
 const uploadDir = path.join(__dirname, '..', '..', 'public', 'uploads')
@@ -68,7 +69,7 @@ const upload = multer({
   }
 })
 
-router.post('/upload', upload.single('image'), (req: Request, res: Response) => {
+router.post('/upload', requireAuth, upload.single('image'), (req: Request, res: Response) => {
   const file = (req as any).file
   if (!file) return res.status(400).json({ error: 'No file uploaded' })
   
