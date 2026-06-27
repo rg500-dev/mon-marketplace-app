@@ -1,19 +1,35 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import { useSocket } from '../contexts/SocketContext'
 
+type Conversation = {
+  partnerId: string
+  lastMessage: string
+  updatedAt: string
+  unread: number
+  username: string
+  avatar?: string | null
+}
+
+// Extensions considérées comme des images (affichées en aperçu).
+// Tout le reste (PDF, Word, Excel, ZIP...) est affiché comme un fichier à télécharger.
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif)$/i
+
 export default function MessagesPage() {
   const { user } = useAuth()
   const { socket, isConnected } = useSocket()
-  const [conversations, setConversations] = useState<any[]>([])
+  const location = useLocation()
+  const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [selectedUsername, setSelectedUsername] = useState<string | null>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [messageText, setMessageText] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
   const [viewingImage, setViewingImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -35,11 +51,12 @@ export default function MessagesPage() {
     }
   }, [])
 
-  const openConversation = useCallback(async (partnerId: string) => {
+  const openConversation = useCallback(async (partnerId: string, username?: string) => {
     setSelectedUserId(partnerId)
+    if (username) setSelectedUsername(username)
     setError('')
-    setImagePreview(null)
-    setSelectedImage(null)
+    setFilePreview(null)
+    setSelectedFile(null)
     try {
       const res = await api.get(`/messages/${partnerId}`)
       setMessages(res.data.data || [])
@@ -50,36 +67,49 @@ export default function MessagesPage() {
     }
   }, [])
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Si on arrive depuis la page d'une annonce ("Contacter le vendeur"), on ouvre
+  // directement la conversation avec ce vendeur, même si elle n'existe pas encore.
+  useEffect(() => {
+    const state = location.state as { withId?: string; withUsername?: string; productTitle?: string } | null
+    if (state?.withId && user) {
+      openConversation(state.withId, state.withUsername)
+      if (state.productTitle) {
+        setMessageText(`Bonjour, je suis intéressé par votre annonce "${state.productTitle}".`)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, user])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setSelectedImage(file)
-      setImagePreview(URL.createObjectURL(file))
+      setSelectedFile(file)
+      setFilePreview(IMAGE_EXTENSIONS.test(file.name) ? URL.createObjectURL(file) : null)
     }
   }
 
-  const removeSelectedImage = () => {
-    setSelectedImage(null)
-    setImagePreview(null)
+  const removeSelectedFile = () => {
+    setSelectedFile(null)
+    setFilePreview(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const sendMessage = async () => {
-    if ((!messageText.trim() && !selectedImage) || sending || !selectedUserId) return
+    if ((!messageText.trim() && !selectedFile) || sending || !selectedUserId) return
     setSending(true)
     setError('')
     try {
       const formData = new FormData()
       formData.append('recipientId', selectedUserId)
       if (messageText.trim()) formData.append('content', messageText)
-      if (selectedImage) formData.append('image', selectedImage)
+      if (selectedFile) formData.append('image', selectedFile)
 
       await api.post('/messages', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       setMessageText('')
-      removeSelectedImage()
-      await openConversation(selectedUserId)
+      removeSelectedFile()
+      await openConversation(selectedUserId, selectedUsername || undefined)
       await loadConversations()
     } catch (err: any) {
       setError(err?.response?.data?.error || "Impossible d'envoyer le message.")
@@ -99,7 +129,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!socket || !user) return
 
-    const handleReceiveMessage = (data: { id: string; senderId: string; content: string; image?: string; createdAt?: string }) => {
+    const handleReceiveMessage = (data: { id: string; senderId: string; content: string; image?: string; fileName?: string; createdAt?: string }) => {
       if (selectedUserId === data.senderId) {
         setMessages(prev => [
           ...prev,
@@ -108,6 +138,7 @@ export default function MessagesPage() {
             senderId: data.senderId,
             content: data.content,
             image: data.image,
+            fileName: data.fileName,
             createdAt: data.createdAt || new Date().toISOString(),
             read: false,
           },
@@ -157,21 +188,32 @@ export default function MessagesPage() {
         {/* Liste des conversations */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="font-semibold mb-4">Conversations</h2>
-          {conversations.length === 0 ? (
+          {conversations.length === 0 && !selectedUserId ? (
             <div className="text-gray-600">Aucune conversation.</div>
           ) : (
             <div className="space-y-3">
-              {conversations.map((conv: any) => (
+              {/* Si on vient d'ouvrir une nouvelle conversation (pas encore de messages),
+                  on l'affiche en tête de liste même si elle n'a pas encore d'historique. */}
+              {selectedUserId && !conversations.some((c) => c.partnerId === selectedUserId) && (
+                <button
+                  onClick={() => openConversation(selectedUserId, selectedUsername || undefined)}
+                  className="w-full text-left p-3 rounded-lg border border-blue-600 bg-blue-50"
+                >
+                  <div className="font-semibold">{selectedUsername || 'Nouvelle conversation'}</div>
+                  <div className="text-sm text-gray-600 truncate italic">Nouvelle conversation</div>
+                </button>
+              )}
+              {conversations.map((conv) => (
                 <button
                   key={conv.partnerId}
-                  onClick={() => openConversation(conv.partnerId)}
+                  onClick={() => openConversation(conv.partnerId, conv.username)}
                   className={`w-full text-left p-3 rounded-lg border ${
                     selectedUserId === conv.partnerId
                       ? 'border-blue-600 bg-blue-50'
                       : 'border-gray-200 hover:bg-gray-50'
                   }`}
                 >
-                  <div className="font-semibold">Utilisateur {conv.partnerId.slice(0, 8)}</div>
+                  <div className="font-semibold">{conv.username}</div>
                   <div className="text-sm text-gray-600 truncate">{conv.lastMessage}</div>
                   {conv.unread > 0 && (
                     <span className="inline-block mt-1 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
@@ -186,7 +228,7 @@ export default function MessagesPage() {
 
         {/* Zone de conversation */}
         <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-md">
-          <h2 className="font-semibold mb-4">Conversation</h2>
+          <h2 className="font-semibold mb-4">{selectedUserId ? (selectedUsername || 'Conversation') : 'Conversation'}</h2>
           {selectedUserId ? (
             <>
               <div className="space-y-3 mb-6 max-h-[420px] overflow-y-auto border rounded-lg p-4 bg-gray-50">
@@ -204,12 +246,26 @@ export default function MessagesPage() {
                       >
                         {msg.image && (
                           <div className="mb-2">
-                            <img
-                              src={msg.image}
-                              alt="Image partagée"
-                              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition max-h-48 object-cover"
-                              onClick={() => setViewingImage(msg.image)}
-                            />
+                            {!msg.fileName || IMAGE_EXTENSIONS.test(msg.fileName) ? (
+                              <img
+                                src={msg.image}
+                                alt="Image partagée"
+                                className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition max-h-48 object-cover"
+                                onClick={() => setViewingImage(msg.image)}
+                              />
+                            ) : (
+                              <a
+                                href={msg.image}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-2 p-2 rounded-lg border ${
+                                  msg.senderId === user.id ? 'border-blue-300 bg-blue-500' : 'border-gray-300 bg-gray-50'
+                                } hover:opacity-90 transition`}
+                              >
+                                <span className="text-2xl">📎</span>
+                                <span className="text-sm underline truncate max-w-[180px]">{msg.fileName}</span>
+                              </a>
+                            )}
                           </div>
                         )}
                         {msg.content && <div className="text-sm whitespace-pre-wrap">{msg.content}</div>}
@@ -223,13 +279,18 @@ export default function MessagesPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Aperçu de l'image sélectionnée */}
-              {imagePreview && (
-                <div className="relative inline-block mb-3">
-                  <img src={imagePreview} alt="Aperçu" className="h-24 rounded-lg border" />
+              {/* Aperçu du fichier sélectionné */}
+              {selectedFile && (
+                <div className="relative inline-flex items-center gap-2 mb-3 p-2 border rounded-lg bg-gray-50">
+                  {filePreview ? (
+                    <img src={filePreview} alt="Aperçu" className="h-16 w-16 object-cover rounded" />
+                  ) : (
+                    <span className="text-2xl px-2">📎</span>
+                  )}
+                  <span className="text-sm text-gray-700 truncate max-w-[200px]">{selectedFile.name}</span>
                   <button
-                    onClick={removeSelectedImage}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                    onClick={removeSelectedFile}
+                    className="bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
                   >
                     ✕
                   </button>
@@ -250,13 +311,13 @@ export default function MessagesPage() {
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       className="bg-gray-100 text-gray-600 p-3 rounded-lg hover:bg-gray-200 transition h-12 w-12 flex items-center justify-center"
-                      title="Joindre une image"
+                      title="Joindre une image ou un document"
                     >
-                      📷
+                      📎
                     </button>
                     <button
                       onClick={sendMessage}
-                      disabled={sending || (!messageText.trim() && !selectedImage)}
+                      disabled={sending || (!messageText.trim() && !selectedFile)}
                       className="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition h-12 w-12 flex items-center justify-center"
                     >
                       {sending ? '⏳' : '➡️'}
@@ -266,8 +327,8 @@ export default function MessagesPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={handleImageSelect}
+                  accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+                  onChange={handleFileSelect}
                   className="hidden"
                 />
                 {error && <div className="text-red-600 text-sm">{error}</div>}
@@ -275,7 +336,7 @@ export default function MessagesPage() {
                   <span className="text-xs text-gray-400">
                     {isConnected ? '🟢 Temps réel actif' : '🔴 Connexion...'}
                   </span>
-                  <span className="text-xs text-gray-400">📷 JPEG, PNG, WebP, GIF max 5 Mo</span>
+                  <span className="text-xs text-gray-400">📎 Images, PDF, Word, Excel, PowerPoint, ZIP — max 10 Mo</span>
                 </div>
               </div>
             </>

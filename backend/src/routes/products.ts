@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../prisma'
-import requireAuth from '../middleware/auth'
+import requireAuth, { optionalAuth, AuthRequest } from '../middleware/auth'
 
 const router = Router()
 
@@ -113,7 +113,7 @@ router.get('/products', async (req, res) => {
 })
 
 // Get product detail with seller and reviews
-router.get('/products/:id', async (req, res) => {
+router.get('/products/:id', optionalAuth, async (req: AuthRequest, res) => {
   const { id } = req.params
   const product = await prisma.product.findUnique({
     where: { id },
@@ -130,9 +130,17 @@ router.get('/products/:id', async (req, res) => {
   })
 
   if (!product) return res.status(404).json({ error: 'Not found' })
-  if (product.status !== 'active') return res.status(404).json({ error: 'Not found' })
 
-  await prisma.product.update({ where: { id }, data: { views: { increment: 1 } } })
+  const isOwner = req.userId === product.sellerId
+  // Une annonce non active (vendue, supprimée par son vendeur, retirée par la modération...)
+  // n'est visible publiquement que par son propriétaire (pour qu'il puisse la gérer/modifier).
+  if (product.status !== 'active' && !isOwner) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
+  if (!isOwner) {
+    await prisma.product.update({ where: { id }, data: { views: { increment: 1 } } })
+  }
   res.json({ data: product })
 })
 
@@ -158,6 +166,55 @@ router.post('/products', requireAuth, async (req: any, res) => {
   })
 
   res.status(201).json({ data: product })
+})
+
+// Update product (owner only)
+router.put('/products/:id', requireAuth, async (req: AuthRequest, res) => {
+  const { id } = req.params
+  const existing = await prisma.product.findUnique({ where: { id } })
+  if (!existing) return res.status(404).json({ error: 'Annonce introuvable' })
+  if (existing.sellerId !== req.userId) {
+    return res.status(403).json({ error: 'Vous ne pouvez modifier que vos propres annonces' })
+  }
+
+  const { title, description, price, categoryId, condition, imageUrl, status, latitude, longitude, location } = req.body
+
+  const data: any = {}
+  if (title !== undefined) data.title = title
+  if (description !== undefined) data.description = description
+  if (price !== undefined) data.price = parseFloat(price)
+  if (categoryId !== undefined) data.categoryId = categoryId
+  if (condition !== undefined) data.condition = condition
+  if (imageUrl !== undefined) data.image = imageUrl || null
+  if (latitude !== undefined) data.latitude = latitude !== null ? parseFloat(latitude) : null
+  if (longitude !== undefined) data.longitude = longitude !== null ? parseFloat(longitude) : null
+  if (location !== undefined) data.location = location
+
+  if (status !== undefined) {
+    // Le vendeur peut remettre son annonce en vente ou la marquer vendue lui-même.
+    // La suppression passe par la route DELETE dédiée (statut "removed" réservé à ça/à la modération).
+    const allowedStatuses = ['active', 'sold']
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Statut invalide' })
+    }
+    data.status = status
+  }
+
+  const updated = await prisma.product.update({ where: { id }, data })
+  res.json({ data: updated })
+})
+
+// Delete product (owner only) — soft delete, même logique que la modération admin
+router.delete('/products/:id', requireAuth, async (req: AuthRequest, res) => {
+  const { id } = req.params
+  const existing = await prisma.product.findUnique({ where: { id } })
+  if (!existing) return res.status(404).json({ error: 'Annonce introuvable' })
+  if (existing.sellerId !== req.userId) {
+    return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres annonces' })
+  }
+
+  await prisma.product.update({ where: { id }, data: { status: 'removed' } })
+  res.json({ success: true })
 })
 
 export default router

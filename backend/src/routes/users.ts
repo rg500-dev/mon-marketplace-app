@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { prisma } from '../prisma'
+import { optionalAuth, AuthRequest } from '../middleware/auth'
 
 const router = Router()
 
-router.get('/users/:id', async (req, res) => {
+router.get('/users/:id', optionalAuth, async (req: AuthRequest, res) => {
   const { id } = req.params
   const user = await prisma.user.findUnique({
     where: { id },
@@ -39,14 +40,26 @@ router.get('/users/:id', async (req, res) => {
     where: { product: { sellerId: id } },
   })
 
+  // Email et téléphone sont des données personnelles : on ne les renvoie qu'au
+  // propriétaire du profil lui-même (ou à un admin), jamais à un visiteur public.
+  const isSelfOrAdmin = req.userId === id || (await isAdmin(req.userId))
+  const { email, phone, ...publicUser } = user
+
   res.json({
     data: {
-      ...user,
+      ...publicUser,
+      ...(isSelfOrAdmin ? { email, phone } : {}),
       totalProducts: user.products.length,
       reviewCount: reviewStats._count.rating,
       averageRating: reviewStats._avg.rating ?? user.rating,
     },
   })
 })
+
+async function isAdmin(userId?: string): Promise<boolean> {
+  if (!userId) return false
+  const requester = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } })
+  return requester?.role === 'admin'
+}
 
 export default router

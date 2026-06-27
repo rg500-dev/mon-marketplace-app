@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 type Profile = {
   id: string
-  email: string
+  email?: string
   username: string
   firstName?: string
   lastName?: string
@@ -105,11 +105,15 @@ export default function ProfilePage() {
       <div className="grid lg:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">Infos personnelles</h2>
-          <p className="text-gray-700 mb-2"><strong>Email:</strong> {profile.email}</p>
-          <p className="text-gray-700 mb-2"><strong>Prénom:</strong> {profile.firstName || 'Non renseigné'}</p>
-          <p className="text-gray-700 mb-2"><strong>Nom:</strong> {profile.lastName || 'Non renseigné'}</p>
-          <p className="text-gray-700 mb-2"><strong>Téléphone:</strong> {profile.phone || 'Non renseigné'}</p>
           <p className="text-gray-700 mb-2"><strong>Localisation:</strong> {profile.location || 'Non renseigné'}</p>
+          {profile.id === user?.id && (
+            <>
+              <p className="text-gray-700 mb-2"><strong>Email:</strong> {profile.email}</p>
+              <p className="text-gray-700 mb-2"><strong>Prénom:</strong> {profile.firstName || 'Non renseigné'}</p>
+              <p className="text-gray-700 mb-2"><strong>Nom:</strong> {profile.lastName || 'Non renseigné'}</p>
+              <p className="text-gray-700 mb-2"><strong>Téléphone:</strong> {profile.phone || 'Non renseigné'}</p>
+            </>
+          )}
           <p className="text-gray-700 mb-2"><strong>Note moyenne:</strong> {profile.averageRating?.toFixed(1) ?? 'Aucune note'}</p>
           <p className="text-gray-700 mb-2"><strong>Nombre d’évaluations:</strong> {profile.reviewCount}</p>
           <p className="text-gray-700 mb-2"><strong>Produits actifs:</strong> {profile.totalProducts}</p>

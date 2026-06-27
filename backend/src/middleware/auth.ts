@@ -42,4 +42,26 @@ export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFu
   })
 }
 
+// Authentification optionnelle : identifie l'utilisateur si un token valide est fourni,
+// mais ne bloque jamais la requête (utile pour les routes publiques qui ont un comportement
+// légèrement différent pour le propriétaire, ex: voir sa propre annonce non publiée).
+export const optionalAuth = async (req: AuthRequest, _res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      const payload = jwt.verify(token, JWT_SECRET) as { userId: string }
+      if (payload?.userId) {
+        const user = await prisma.user.findUnique({ where: { id: payload.userId }, select: { id: true, isSuspended: true } })
+        if (user && !user.isSuspended) {
+          req.userId = payload.userId
+        }
+      }
+    }
+  } catch {
+    // Token invalide ou expiré : on continue simplement en anonyme, pas d'erreur.
+  }
+  next()
+}
+
 export default requireAuth

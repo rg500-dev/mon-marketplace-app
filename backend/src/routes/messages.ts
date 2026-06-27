@@ -14,17 +14,20 @@ cloudinary.config({
 })
 
 // Multer pour stockage temporaire en mémoire
+// On accepte les images ET les documents courants (PDF, Office, texte, zip).
+// Liste blanche volontairement restreinte : pas d'exécutables ni de scripts.
+const ALLOWED_EXTENSIONS = /\.(jpe?g|png|webp|gif|pdf|docx?|xlsx?|pptx?|txt|csv|zip)$/i
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB (documents un peu plus volumineux que des photos)
   fileFilter: (req: any, file: any, cb: any) => {
-    const allowedTypes = /jpeg|jpg|png|webp|gif/
-    const extname = allowedTypes.test(file.originalname.toLowerCase())
-    const mimetype = allowedTypes.test(file.mimetype)
-    if (extname && mimetype) return cb(null, true)
-    cb(new Error('Seules les images (JPEG, PNG, WebP, GIF) sont autorisées'))
+    if (ALLOWED_EXTENSIONS.test(file.originalname)) return cb(null, true)
+    cb(new Error('Type de fichier non autorisé (images, PDF, Word, Excel, PowerPoint, texte ou ZIP uniquement)'))
   },
 })
+
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif)$/i
 
 export default function createMessagesRoutes(io: SocketIOServer) {
   const router = Router()
@@ -42,24 +45,40 @@ export default function createMessagesRoutes(io: SocketIOServer) {
       const partnerId = msg.senderId === userId ? msg.recipient : msg.senderId
       const entry = conversations.get(partnerId)
       const unread = msg.recipient === userId && !msg.read ? 1 : 0
+      const preview = msg.image ? (msg.fileName && !IMAGE_EXTENSIONS.test(msg.fileName) ? `📎 ${msg.fileName}` : '📷 Image') : msg.content
 
       if (!entry) {
         conversations.set(partnerId, {
           partnerId,
-          lastMessage: msg.image ? '📷 Image' : msg.content,
+          lastMessage: preview,
           updatedAt: msg.createdAt,
           unread,
         })
       } else {
         if (msg.createdAt > entry.updatedAt) {
-          entry.lastMessage = msg.image ? '📷 Image' : msg.content
+          entry.lastMessage = preview
           entry.updatedAt = msg.createdAt
         }
         entry.unread += unread
       }
     })
 
-    res.json({ data: Array.from(conversations.values()) })
+    // On récupère en une requête les infos publiques (username, avatar) de tous les contacts,
+    // pour ne plus afficher un ID tronqué illisible côté frontend.
+    const partnerIds = Array.from(conversations.keys())
+    const partners: { id: string; username: string; avatar: string | null }[] = await prisma.user.findMany({
+      where: { id: { in: partnerIds } },
+      select: { id: true, username: true, avatar: true },
+    })
+    const partnerById = new Map(partners.map((p) => [p.id, p]))
+
+    const result = Array.from(conversations.values()).map((c) => ({
+      ...c,
+      username: partnerById.get(c.partnerId)?.username || 'Utilisateur supprimé',
+      avatar: partnerById.get(c.partnerId)?.avatar || null,
+    }))
+
+    res.json({ data: result })
   })
 
   // Envoyer un message (texte + image optionnelle)
@@ -76,16 +95,24 @@ export default function createMessagesRoutes(io: SocketIOServer) {
       if (!sender) return res.status(404).json({ error: 'Sender not found' })
       if (!recipientId) return res.status(400).json({ error: 'Destinataire requis' })
 
-      let imageUrl: string | null = null
+      const recipientUser = await prisma.user.findUnique({ where: { id: recipientId }, select: { email: true } })
+      if (!recipientUser) return res.status(404).json({ error: 'Destinataire introuvable' })
 
-      // Upload de l'image vers Cloudinary si présente
+      let imageUrl: string | null = null
+      let fileName: string | null = null
+
+      // Upload du fichier vers Cloudinary si présent (image ou document)
       if (req.file) {
+        const isImage = IMAGE_EXTENSIONS.test(req.file.originalname)
         const result = await new Promise<any>((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
             {
               folder: 'marketplace-chat',
-              allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-              transformation: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }],
+              resource_type: 'auto', // laisse Cloudinary détecter image/raw selon le contenu
+              // La transformation (redimensionnement) n'a de sens que pour les images.
+              ...(isImage
+                ? { transformation: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }] }
+                : {}),
             },
             (error, result) => {
               if (error) reject(error)
@@ -95,6 +122,7 @@ export default function createMessagesRoutes(io: SocketIOServer) {
           stream.end(req.file!.buffer)
         })
         imageUrl = result.secure_url
+        fileName = req.file.originalname
       }
 
       // Créer le message
@@ -102,19 +130,21 @@ export default function createMessagesRoutes(io: SocketIOServer) {
         data: {
           content: content || '',
           image: imageUrl,
+          fileName,
           senderId,
           recipient: recipientId,
         },
       })
 
       // Notification
+      const attachmentLabel = fileName && !IMAGE_EXTENSIONS.test(fileName) ? 'un fichier' : 'une photo'
       await prisma.notification.create({
         data: {
           userId: recipientId,
           type: 'message',
           title: 'Nouveau message',
           message: imageUrl
-            ? `${sender.username} vous a envoyé une photo.`
+            ? `${sender.username} vous a envoyé ${attachmentLabel}.`
             : `${sender.username} vous a envoyé un message.`,
           metadata: { senderId, product: null, messageId: message.id },
         },
@@ -126,20 +156,20 @@ export default function createMessagesRoutes(io: SocketIOServer) {
         senderId,
         content: message.content,
         image: message.image,
+        fileName: message.fileName,
         createdAt: message.createdAt,
       })
       io.to(recipientId).emit('notification', {
         type: 'message',
         title: 'Nouveau message',
-        message: imageUrl ? `${sender.username} a envoyé une photo.` : `${sender.username} a envoyé un message.`,
+        message: imageUrl ? `${sender.username} a envoyé ${attachmentLabel}.` : `${sender.username} a envoyé un message.`,
         data: { messageId: message.id, senderId },
       })
 
       res.status(201).json({ data: message })
 
       // Email (asynchrone)
-      const recipientUser = await prisma.user.findUnique({ where: { id: recipientId }, select: { email: true } })
-      if (recipientUser?.email) {
+      if (recipientUser.email) {
         sendNewMessageEmail(recipientUser.email, sender.username, content || '(Photo)')
       }
     } catch (err: any) {

@@ -174,26 +174,96 @@ export default function ProductDetailPage() {
 
           {user ? (
             <div className="space-y-3 mb-6">
-              <p className="text-gray-700">Envoyez un message au vendeur pour en savoir plus.</p>
-              <div className="flex flex-wrap gap-3">
-                {product.status === 'active' && (
-                  <button
-                    onClick={() => navigate(`/checkout/${product.id}`)}
-                    className="inline-block bg-green-600 text-white px-5 py-3 rounded-lg hover:bg-green-700 font-medium"
-                  >
-                    💳 Acheter maintenant
-                  </button>
-                )}
-                <Link to="/messages" className="inline-block bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700">
-                  Ouvrir la messagerie
-                </Link>
-                <Link
-                  to={`/report?productId=${product.id}`}
-                  className="inline-block bg-amber-500 text-white px-5 py-3 rounded-lg hover:bg-amber-600"
-                >
-                  Signaler ce produit
-                </Link>
-              </div>
+              {user.id === product.seller.id ? (
+                <>
+                  <p className="text-gray-700">C'est votre annonce.</p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => navigate(`/products/${product.id}/edit`)}
+                      className="inline-block bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700 font-medium"
+                    >
+                      ✏️ Modifier l'annonce
+                    </button>
+                    {product.status === 'active' ? (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.put(`/products/${product.id}`, { status: 'sold' })
+                            loadProduct()
+                          } catch (err) {
+                            console.error(err)
+                          }
+                        }}
+                        className="inline-block bg-amber-500 text-white px-5 py-3 rounded-lg hover:bg-amber-600 font-medium"
+                      >
+                        ✅ Marquer comme vendu
+                      </button>
+                    ) : product.status === 'sold' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.put(`/products/${product.id}`, { status: 'active' })
+                            loadProduct()
+                          } catch (err) {
+                            console.error(err)
+                          }
+                        }}
+                        className="inline-block bg-amber-500 text-white px-5 py-3 rounded-lg hover:bg-amber-600 font-medium"
+                      >
+                        🔄 Remettre en vente
+                      </button>
+                    )}
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('Supprimer définitivement cette annonce ?')) return
+                        try {
+                          await api.delete(`/products/${product.id}`)
+                          navigate('/dashboard')
+                        } catch (err) {
+                          console.error(err)
+                        }
+                      }}
+                      className="inline-block bg-red-600 text-white px-5 py-3 rounded-lg hover:bg-red-700 font-medium"
+                    >
+                      🗑️ Supprimer
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-700">Envoyez un message au vendeur pour en savoir plus.</p>
+                  <div className="flex flex-wrap gap-3">
+                    {product.status === 'active' && (
+                      <button
+                        onClick={() => navigate(`/checkout/${product.id}`)}
+                        className="inline-block bg-green-600 text-white px-5 py-3 rounded-lg hover:bg-green-700 font-medium"
+                      >
+                        💳 Acheter maintenant
+                      </button>
+                    )}
+                    <button
+                      onClick={() =>
+                        navigate('/messages', {
+                          state: {
+                            withId: product.seller.id,
+                            withUsername: product.seller.username,
+                            productTitle: product.title,
+                          },
+                        })
+                      }
+                      className="inline-block bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700"
+                    >
+                      💬 Contacter le vendeur
+                    </button>
+                    <Link
+                      to={`/report?productId=${product.id}`}
+                      className="inline-block bg-amber-500 text-white px-5 py-3 rounded-lg hover:bg-amber-600"
+                    >
+                      Signaler ce produit
+                    </Link>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="bg-yellow-100 border-l-4 border-yellow-400 p-4 mb-6">

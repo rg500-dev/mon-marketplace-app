@@ -131,14 +131,6 @@ io.on('connection', (socket) => {
     socket.join(userId);
   });
 
-  socket.on('send_message', (data: { senderId: string; recipientId: string; content: string }) => {
-    io.to(data.recipientId).emit('receive_message', {
-      senderId: data.senderId,
-      content: data.content,
-      timestamp: new Date(),
-    });
-  });
-
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
   });
