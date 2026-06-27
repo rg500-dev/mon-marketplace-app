@@ -130,7 +130,7 @@ export default function ProfilePage() {
               <Link key={product.id} to={`/products/${product.id}`} className="border rounded-lg overflow-hidden hover:shadow-lg transition">
                 <div className="bg-gray-100 h-40 flex items-center justify-center">
                   {product.image ? (
-                    <img src={product.image} alt={product.title} className="h-full w-full object-cover" />
+                    <img src={product.image} alt={product.title} className="h-full w-full object-contain" />
                   ) : (
                     <span className="text-gray-500">Aucune image</span>
                   )}

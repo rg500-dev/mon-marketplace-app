@@ -294,9 +294,9 @@ export default function ProductsPage() {
             <div className="grid md:grid-cols-3 gap-6">
               {products.map((product) => (
                 <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
-                  <div className="bg-gray-300 h-48 flex items-center justify-center">
+                  <div className="bg-gray-100 h-48 flex items-center justify-center">
                     {product.image ? (
-                      <img src={product.image} alt={product.title} className="h-full object-cover w-full" />
+                      <img src={product.image} alt={product.title} className="h-full object-contain w-full" />
                     ) : (
                       <span className="text-gray-500">Image du produit</span>
                     )}
