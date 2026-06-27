@@ -6,12 +6,8 @@ import { requireAuth, AuthRequest } from '../middleware/auth'
 import { sendWelcomeEmail } from '../services/emailService'
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key'
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '7d'
-
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined in environment variables')
-}
 
 // Register
 router.post('/auth/register', async (req, res) => {
@@ -36,8 +32,8 @@ router.post('/auth/register', async (req, res) => {
     })
 
     const token = jwt.sign({ userId: user.id } as any, JWT_SECRET as any, { expiresIn: JWT_EXPIRATION } as any)
-    const { password: _, verificationToken: __, ...safeUser } = user
-    res.status(201).json({ token, user: safeUser })
+    const safeUser = { ...user, password: undefined, verificationToken: undefined }
+    res.status(201).json({ token, user: safeUser, verificationToken })
 
     // Email de bienvenue (asynchrone)
     sendWelcomeEmail(email, username, verificationToken)

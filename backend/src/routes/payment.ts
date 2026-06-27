@@ -1,17 +1,17 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
-import { prisma } from '../prisma';
-import requireAuth from '../middleware/auth';
+import { PrismaClient } from '@prisma/client';
 
 const router = Router();
+const prisma = new PrismaClient();
 
-// Initialisation de Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-01-27' as any,
+// Initialisation de Stripe avec votre clé secrète (à mettre dans le fichier .env plus tard)
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_votre_cle_ici', {
+  apiVersion: '2025-01-27' as any, // Utilise la version API stable
 });
 
-// Route pour créer l'intention de paiement (authentifié requis)
-router.post('/create-intent', requireAuth, async (req: Request, res: Response): Promise<any> => {
+// Route pour créer l'intention de paiement
+router.post('/create-intent', async (req: Request, res: Response): Promise<any> => {
   try {
     const { productId } = req.body;
 

@@ -24,31 +24,6 @@ router.post('/reviews', requireAuth, async (req: AuthRequest, res) => {
   const product = await prisma.product.findUnique({ where: { id: productId }, include: { seller: true } })
   if (!product) return res.status(404).json({ error: 'Product not found' })
 
-  // Empêcher l'utilisateur de noter son propre produit
-  if (product.sellerId === req.userId) {
-    return res.status(403).json({ error: 'Vous ne pouvez pas évaluer votre propre produit' })
-  }
-
-  // Vérifier que l'utilisateur a bien interagi avec le vendeur (offre acceptée)
-  const hasOffer = await prisma.offer.findFirst({
-    where: {
-      productId,
-      buyerId: req.userId!,
-      status: 'accepted',
-    },
-  })
-  if (!hasOffer) {
-    return res.status(403).json({ error: 'Vous devez avoir acheté ce produit pour laisser un avis' })
-  }
-
-  // Vérifier que l'utilisateur n'a pas déjà laissé un avis
-  const existingReview = await prisma.review.findFirst({
-    where: { productId, authorId: req.userId! },
-  })
-  if (existingReview) {
-    return res.status(409).json({ error: 'Vous avez déjà laissé un avis sur ce produit' })
-  }
-
   const reviewer = await prisma.user.findUnique({ where: { id: req.userId! }, select: { username: true } })
   const review = await prisma.review.create({
     data: {

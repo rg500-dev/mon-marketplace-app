@@ -14,62 +14,36 @@ import socialAuthRoutes from './routes/socialAuth'
 // Load environment variables
 dotenv.config();
 
-// Vérification JWT_SECRET au démarrage
-if (!process.env.JWT_SECRET) {
-  console.error('❌ ERREUR CRITIQUE: JWT_SECRET non défini dans les variables d\'environnement')
-  console.error('Le serveur ne peut pas démarrer sans JWT_SECRET.')
+// JWT_SECRET est requis en production : on refuse de démarrer sans lui
+// plutôt que de retomber silencieusement sur une valeur par défaut connue.
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error('❌ JWT_SECRET manquant en production. Arrêt du serveur.')
   process.exit(1)
 }
 
 const app: Express = express();
+// Render (comme Heroku, etc.) est derrière un reverse proxy qui ajoute X-Forwarded-For.
+// Sans ce réglage, express-rate-limit ne peut pas identifier les IP correctement.
+app.set('trust proxy', 1);
 const http = createServer(app);
 
-const FRONTEND_URLS = [
-  process.env.FRONTEND_URL,
-  'https://marketplace-frontend-rv3l.onrender.com',
-].filter(Boolean) as string[]
+// Liste blanche des origines autorisées (séparées par des virgules dans FRONTEND_URL)
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim().replace(/\/$/, '')) // on retire un éventuel "/" final
 
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    // Autoriser les requêtes sans origin (Postman, curl, etc.)
-    if (!origin) return callback(null, true)
-    if (FRONTEND_URLS.some(url => origin.startsWith(url))) {
-      return callback(null, true)
-    }
-    return callback(new Error('Not allowed by CORS'))
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+const corsOriginCheck = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  // Pas d'origine (ex: curl, app mobile, requêtes server-to-server) : on laisse passer
+  if (!origin) return callback(null, true)
+  const normalizedOrigin = origin.replace(/\/$/, '')
+  if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true)
+  console.warn(`⚠️ CORS refusé pour l'origine: "${origin}" — autorisées: ${allowedOrigins.join(', ')}`)
+  return callback(new Error('Non autorisé par la politique CORS'))
 }
-
-app.use(cors(corsOptions))
-
-// Sécurité HTTP
-app.use(helmet())
-
-// Rate limiting global
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Trop de requêtes, veuillez réessayer plus tard.' },
-})
-app.use(globalLimiter)
-
-// Rate limiting pour /auth/login (anti brute-force)
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
-})
 
 const io = new SocketIOServer(http, {
   cors: {
-    origin: FRONTEND_URLS,
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -78,13 +52,47 @@ const io = new SocketIOServer(http, {
 const uploadDir = path.join(__dirname, '..', 'public', 'uploads')
 app.use('/uploads', express.static(uploadDir))
 
-const routes = createRoutes(io, loginLimiter)
+const routes = createRoutes(io)
 
 const PORT = process.env.PORT || 10000;
+
+// CSP désactivée : ce serveur est une API JSON + fichiers statiques, pas de pages HTML à protéger.
+// crossOriginResourcePolicy en "cross-origin" : nécessaire pour que le frontend (autre domaine sur Render)
+// puisse charger les images servies depuis /uploads.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
+// Middleware CORS - restreint aux origines de la liste blanche (FRONTEND_URL)
+app.use(cors({
+  origin: corsOriginCheck,
+  credentials: true,
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
+
+// Rate limiting global : limite les abus simples (scraping, DoS basique)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+app.use('/api', globalLimiter)
+
+// Rate limiting strict sur les routes d'authentification (anti brute-force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives, réessayez plus tard.' },
+})
+app.use('/api/auth/login', authLimiter)
+app.use('/api/auth/register', authLimiter)
 
 // API routes
 app.use('/api', routes)
@@ -109,9 +117,6 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({ error: 'Origine non autorisée' })
-  }
   console.error(err);
   res.status(err.status || 500).json({
     error: err.message || 'Internal Server Error',
@@ -143,7 +148,6 @@ io.on('connection', (socket) => {
 http.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔒 CORS autorisé pour: ${FRONTEND_URLS.join(', ')}`);
 });
 
 // Graceful shutdown

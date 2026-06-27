@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express'
 import multer from 'multer'
 import path from 'path'
-import { v2 as cloudinary } from 'cloudinary'
+// On importe le module cloudinary complet : multer-storage-cloudinary accède en interne
+// à `this.cloudinary.v2.uploader...`, donc il a besoin de l'objet module entier (avec .v2 dessus),
+// pas seulement du namespace v2 (sinon `cloudinary.v2` est undefined → crash au moment de l'upload).
+import cloudinaryModule from 'cloudinary'
+const cloudinary = cloudinaryModule.v2
 import fs from 'fs'
-import requireAuth from '../middleware/auth'
 
 const router = Router()
 const uploadDir = path.join(__dirname, '..', '..', 'public', 'uploads')
@@ -29,7 +32,7 @@ if (useCloudinary) {
   // @ts-ignore
   const CloudinaryStorage = require('multer-storage-cloudinary')
   storage = CloudinaryStorage({
-    cloudinary: cloudinary,
+    cloudinary: cloudinaryModule, // le module complet, requis par la lib (elle fait cloudinary.v2.uploader...)
     params: {
       folder: 'marketplace-uploads',
       allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
@@ -69,7 +72,7 @@ const upload = multer({
   }
 })
 
-router.post('/upload', requireAuth, upload.single('image'), (req: Request, res: Response) => {
+router.post('/upload', upload.single('image'), (req: Request, res: Response) => {
   const file = (req as any).file
   if (!file) return res.status(400).json({ error: 'No file uploaded' })
   
