@@ -113,9 +113,9 @@ export default function ProductDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="bg-gray-200 h-80 flex items-center justify-center">
+          <div className="bg-gray-100 h-80 flex items-center justify-center">
             {product.image ? (
-              <img src={product.image} alt={product.title} className="h-full w-full object-cover" />
+              <img src={product.image} alt={product.title} className="h-full w-full object-contain" />
             ) : (
               <span className="text-gray-500">Aucune image</span>
             )}
