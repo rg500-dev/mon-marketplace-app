@@ -43,6 +43,7 @@ if (useCloudinary) {
     } as any,
   })
 } else {
+  console.warn('⚠️  Cloudinary non configuré (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET manquants) — stockage local utilisé. ATTENTION : sur Render, le disque local n\'est PAS persistant, les images seront perdues au prochain déploiement.')
   // Stockage local (fallback)
   storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -54,6 +55,8 @@ if (useCloudinary) {
     }
   })
 }
+
+console.log(useCloudinary ? '☁️  Stockage des images : Cloudinary' : '💾 Stockage des images : disque local (non persistant sur Render)')
 
 const upload = multer({ 
   storage,
@@ -75,13 +78,25 @@ const upload = multer({
 router.post('/upload', upload.single('image'), (req: Request, res: Response) => {
   const file = (req as any).file
   if (!file) return res.status(400).json({ error: 'No file uploaded' })
-  
-  const url = useCloudinary ? file.path : `/uploads/${file.filename}`
-  res.status(201).json({ 
-    data: { 
+
+  // IMPORTANT : multer-storage-cloudinary transmet directement le résultat brut de l'API
+  // Cloudinary (secure_url, public_id, ...) à multer. Il n'y a PAS de champ `path` ni `filename`
+  // dans ce cas (contrairement au stockage disque local, où multer les définit lui-même).
+  const url = useCloudinary
+    ? file.secure_url
+    : `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
+  const publicId = useCloudinary ? file.public_id : file.filename
+
+  if (!url) {
+    console.error('❌ Upload : aucune URL retournée par le storage. Champs reçus sur "file":', Object.keys(file))
+    return res.status(500).json({ error: 'Échec de l\'upload : URL de l\'image introuvable' })
+  }
+
+  res.status(201).json({
+    data: {
       url,
-      publicId: file.filename
-    } 
+      publicId
+    }
   })
 })
 
